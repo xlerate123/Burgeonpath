@@ -10,7 +10,7 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: "http://localhost:8080", // your frontend dev server
+  origin: ["http://localhost:8080","https://burgeonpath-phi.vercel.app"], // your frontend dev server
   credentials: true, // allow cookies
 }));
 
