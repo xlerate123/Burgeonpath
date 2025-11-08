@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, FileText, ArrowRight, ArrowLeft, X, AlertCircle } from "lucide-react";
 import { getAuth } from "firebase/auth";
 
-const API_BASE_URL = "http://localhost:5000/api/v1/profiles";
+const API_BASE_URL = `${process.env.VITE_API_URL}/api/v1/profiles`;
 
 const ProfileUpload = () => {
   const navigate = useNavigate();

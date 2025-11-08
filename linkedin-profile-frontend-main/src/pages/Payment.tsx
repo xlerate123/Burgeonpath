@@ -45,7 +45,7 @@ const Payment = () => {
       setIsProcessing(true);
 
       // 1️⃣ Create order from backend
-      const orderResponse = await fetch("http://localhost:5000/api/v1/payment/create-order", {
+      const orderResponse = await fetch(`${process.env.VITE_API_URL}/api/v1/payment/create-order`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: 999 }), // amount in INR
@@ -76,7 +76,7 @@ const Payment = () => {
         order_id: order.id,
         handler: async function (response) {
           // 4️⃣ Verify payment in backend
-          const verifyRes = await fetch("http://localhost:5000/api/v1/payment/verify-payment", {
+          const verifyRes = await fetch(`${process.env.VITE_API_URL}/api/v1/payment/verify-payment`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

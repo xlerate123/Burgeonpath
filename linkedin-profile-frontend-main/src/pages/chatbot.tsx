@@ -16,7 +16,7 @@ interface ChatBotUIProps {
 
 export default function ChatBotUI({ originalAnalysis, onAnalysisUpdate }: ChatBotUIProps) {
   // Your backend URL - update this to match your server
-  const BACKEND_URL = "http://localhost:5000/api/v1/profiles/chat-modify";
+  const BACKEND_URL = `${process.env.VITE_API_URL}/api/v1/profiles/chat-modify`;
 
   const [messages, setMessages] = useState<Message[]>([
     {

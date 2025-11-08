@@ -84,7 +84,7 @@ const Signup = () => {
 
       // 1️⃣ Register user with backend (creates Firebase user + Firestore profile)
       const response = await axios.post(
-        "http://localhost:5000/api/v1/auth/register",
+        `${process.env.VITE_API_URL}/api/v1/auth/register`,
         {
           firstName,
           lastName,
@@ -152,7 +152,7 @@ const Signup = () => {
 
       // 1️⃣ Send to backend for unified user creation
       const response = await axios.post(
-        "http://localhost:5000/api/v1/auth/google",
+        `${process.env.VITE_API_URL}/api/v1/auth/google`,
         { idToken },
         { withCredentials: true }
       );
@@ -207,7 +207,7 @@ const Signup = () => {
       setIsLoading(true);
       
       await axios.post(
-        "http://localhost:5000/api/v1/auth/complete-profile",
+        `${process.env.VITE_API_URL}/api/v1/auth/complete-profile`,
         {
           uid: googleUser.uid,
           phone: formData.phone,

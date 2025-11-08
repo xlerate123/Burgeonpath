@@ -47,7 +47,7 @@ const Login = () => {
       const { email, password } = formData;
 
       const response = await axios.post(
-        "http://localhost:5000/api/v1/admin/login",
+        `${process.env.VITE_API_URL}/api/v1/admin/login`,
         { email, password },
         { withCredentials: true }
       );
