@@ -26,69 +26,61 @@ const Login = () => {
     setError("");
   };
 
-  // ✅ Store user data in localStorage
   const storeUserData = (userData) => {
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('userToken', userData.token || 'user-authenticated');
     localStorage.setItem('userLoginTime', new Date().toISOString());
   };
 
-  // ✅ Clear user data from localStorage
   const clearUserData = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('userToken');
     localStorage.removeItem('userLoginTime');
   };
 
-  // ✅ Admin Login
   const handleAdminLogin = async () => {
     try {
       setIsLoading(true);
       const { email, password } = formData;
 
       const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/v1/admin/login`,
+        ${import.meta.env.VITE_API_URL}/api/v1/admin/login,
         { email, password },
         { withCredentials: true }
       );
 
       if (response.data.success) {
-        // Store admin info
         localStorage.setItem('adminEmail', response.data.admin.email);
         localStorage.setItem('adminName', response.data.admin.name);
         localStorage.setItem('adminRole', response.data.admin.role);
         localStorage.setItem('adminLoginTime', new Date().toISOString());
-        
-        // Clear any existing user data (to prevent conflicts)
         clearUserData();
-        
         navigate("/admin");
+      } else {
+        setError(response.data.error || "Admin login failed.");
       }
-    } catch (error) {
-      console.error("Admin login error:", error);
-      setError(error.response?.data?.error || "Invalid admin credentials.");
+    } catch (err) {
+      console.error("Admin login error:", err);
+      setError(err.response?.data?.error || "Invalid admin credentials.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ✅ User Email Login
   const handleEmailLogin = async () => {
     try {
       setIsLoading(true);
       const { email, password } = formData;
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      const idToken = await user.getIdToken();
+      const idToken = await user.getIdToken(true);
 
-      // Create session with backend
       await axios.post(
-          `${import.meta.env.VITE_API_URL}/api/v1/auth/sessionLogin`,
+        ${import.meta.env.VITE_API_URL}/api/v1/auth/sessionLogin,
         { idToken },
-        { withCredentials: true }
+        { withCredentials: true } // <--- ensure cookie is set by backend
       );
 
-      // ✅ Store user data in localStorage
       const userData = {
         id: user.uid,
         email: user.email,
@@ -99,79 +91,103 @@ const Login = () => {
       };
 
       storeUserData(userData);
-
-      // Clear any existing admin data (to prevent conflicts)
       localStorage.removeItem('adminEmail');
       localStorage.removeItem('adminName');
       localStorage.removeItem('adminRole');
       localStorage.removeItem('adminLoginTime');
 
       navigate("/payment");
-    } catch (error) {
-      console.error("Login error:", error);
+    } catch (err) {
+      console.error("Login error:", err);
       setError("Invalid credentials or account not found.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ✅ Google Login (User only, redirect flow to avoid COOP popup warnings)
   const handleGoogleLogin = async () => {
     try {
       setIsLoading(true);
+      // Redirects to Google sign-in page; returns to getRedirectResult handler on redirect back.
       await signInWithRedirect(auth, provider);
-    } catch (error) {
-      console.error("Google login (redirect) error:", error);
+    } catch (err) {
+      console.error("Google login (redirect) error:", err);
       setError("Something went wrong during Google login redirect.");
       setIsLoading(false);
     }
   };
 
-  // Handle Google redirect result
   useEffect(() => {
     let mounted = true;
+
+    const getTokenWithRetry = async (user, retries = 3, delayMs = 300) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const token = await user.getIdToken(true);
+          if (token) return token;
+        } catch (e) {
+          // ignore and retry
+        }
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+      throw new Error("Failed to obtain ID token from Firebase user.");
+    };
+
     const processRedirectResult = async () => {
       try {
+        // Important: call getRedirectResult once on mount to process OAuth redirect.
         const result = await getRedirectResult(auth);
-        if (!result) return;
-        setIsLoading(true);
-        const user = result.user;
-        const idToken = await user.getIdToken();
+        console.log("getRedirectResult:", result);
+        if (!result) return; // no redirect result -> user didn't come from redirect flow
 
-        // Create session with backend
-        await axios.post(
-          `${import.meta.env.VITE_API_URL}/api/v1/auth/sessionLogin`,
-          { idToken }
+        if (mounted) setIsLoading(true);
+
+        const user = result.user;
+        if (!user) {
+          throw new Error("No user object in redirect result.");
+        }
+
+        // try to get fresh id token (retry a little if firebase hasn't fully settled)
+        const idToken = await getTokenWithRetry(user, 4, 300);
+
+        // send token to backend and pass credentials so the cookie can be set
+        const resp = await axios.post(
+          ${import.meta.env.VITE_API_URL}/api/v1/auth/sessionLogin,
+          { idToken },
+          { withCredentials: true } // <--- CRITICAL: allow backend to set cookie
         );
 
-        // ✅ Store user data in localStorage
+        console.log("sessionLogin response:", resp?.data);
+
+        // store user locally
         const userData = {
           id: user.uid,
           email: user.email,
-          name: user.displayName || user.email.split('@')[0],
-          photoURL: user.photoURL,
+          name: user.displayName || (user.email ? user.email.split('@')[0] : ""),
+          photoURL: user.photoURL || null,
           emailVerified: user.emailVerified,
           loginTime: new Date().toISOString(),
           isGoogleUser: true
         };
 
         storeUserData(userData);
-
-        // Clear any existing admin data (to prevent conflicts)
         localStorage.removeItem('adminEmail');
         localStorage.removeItem('adminName');
         localStorage.removeItem('adminRole');
         localStorage.removeItem('adminLoginTime');
 
         navigate("/payment");
-      } catch (error) {
-        console.error("Google login redirect handling error:", error);
-        setError("Something went wrong during Google login (redirect).");
+      } catch (err) {
+        console.error("Google login redirect handling error:", err);
+        // Show backend error message when available
+        setError(err?.response?.data?.error || err.message || "Something went wrong during Google login (redirect).");
       } finally {
         if (mounted) setIsLoading(false);
       }
     };
+
     processRedirectResult();
+
     return () => { mounted = false; };
   }, [auth, navigate]);
 
@@ -200,7 +216,6 @@ const Login = () => {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Toggle Admin/User Mode */}
           <div className="flex items-center justify-center">
             <button
               onClick={() => {
@@ -255,7 +270,6 @@ const Login = () => {
               {isLoading ? "Signing in..." : isAdminMode ? "Login as Admin" : "Login"}
             </Button>
 
-            {/* Google Login - Only for regular users */}
             {!isAdminMode && (
               <Button onClick={handleGoogleLogin} variant="outline" className="w-full">
                 <img
@@ -268,7 +282,6 @@ const Login = () => {
             )}
           </div>
 
-          {/* Sign up link - Only for regular users */}
           {!isAdminMode && (
             <p className="text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
