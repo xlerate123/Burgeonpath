@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { AlertCircle, Mail, ArrowLeft, Shield } from "lucide-react";
-import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from "firebase/auth";
 import { app } from "../config/firebase";
 import axios from "axios";
 import { RouteGuard } from "@/components/common/RouteGuard";
@@ -105,17 +105,55 @@ const Login = () => {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      setIsLoading(true);
-      // Redirects to Google sign-in page; returns to getRedirectResult handler on redirect back.
-      await signInWithRedirect(auth, provider);
-    } catch (err) {
-      console.error("Google login (redirect) error:", err);
-      setError("Something went wrong during Google login redirect.");
-      setIsLoading(false);
+const handleGoogleLogin = async () => {
+  try {
+    setIsLoading(true);
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    if (!user) {
+      throw new Error("Google sign-in failed: No user returned.");
     }
-  };
+
+    // Get the Firebase ID token
+    const idToken = await user.getIdToken(true);
+
+    // Send token to backend to create a secure session
+    const resp = await axios.post(
+      `${import.meta.env.VITE_API_URL}/api/v1/auth/sessionLogin`,
+      { idToken },
+      { withCredentials: true } // important for setting cookies
+    );
+
+    console.log("Backend session created:", resp.data);
+
+    // Save user locally
+    const userData = {
+      id: user.uid,
+      email: user.email,
+      name: user.displayName || (user.email ? user.email.split("@")[0] : ""),
+      photoURL: user.photoURL || null,
+      emailVerified: user.emailVerified,
+      loginTime: new Date().toISOString(),
+      isGoogleUser: true,
+    };
+
+    storeUserData(userData);
+    // clear admin data (just like your existing flow)
+    localStorage.removeItem("adminEmail");
+    localStorage.removeItem("adminName");
+    localStorage.removeItem("adminRole");
+    localStorage.removeItem("adminLoginTime");
+
+    navigate("/payment");
+  } catch (err) {
+    console.error("Google login error:", err);
+    setError(err?.response?.data?.error || err.message || "Google login failed.");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   useEffect(() => {
     let mounted = true;
