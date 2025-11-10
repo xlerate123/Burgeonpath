@@ -15,11 +15,12 @@ app.use(cors({
   origin: [
     "http://localhost:8080",
     "http://localhost:5173",
-    "https://burgeonpath-theta.vercel.app/"
+    "https://burgeonpath-theta.vercel.app"
   ],
   credentials: true, // <-- must be true to allow cookies
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization"],
+  
 }));
 
 app.use(express.json({ limit: '10mb' })); 
