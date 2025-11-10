@@ -15,7 +15,7 @@ app.use(cors({
   origin: [
     "http://localhost:8080",
     "http://localhost:5173",
-    "https://burgeonpath-phi.vercel.app"
+    "https://burgeonpath-theta.vercel.app/"
   ],
   credentials: true, // <-- must be true to allow cookies
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
