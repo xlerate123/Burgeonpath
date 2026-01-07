@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, X, Home, DollarSign, User, LogOut, Shield, Settings } from "lucide-react";
+import { Menu, X, User, LogOut, Settings } from "lucide-react";
 
 export default function Navigation() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -110,18 +110,18 @@ export default function Navigation() {
   }, [isMobileMenuOpen]);
 
   const navLinks = [
-    { to: "/", label: "Home", icon: <Home className="w-4 h-4" /> },
+    { to: "/", label: "Home" },
     { to: "/features", label: "Features" },
     { to: "/about", label: "About" },
-    { to: "/pricing", label: "Pricing", icon: <DollarSign className="w-4 h-4" /> },
+    { to: "/pricing", label: "Pricing" },
     { to: "/blog", label: "Blog" },
     { to: "/contact", label: "Contact" },
   ];
 
   if (isAdminLoggedIn) {
-    navLinks.push({ to: "/admin", label: "Admin Panel", icon: <Shield className="w-4 h-4" /> });
+    navLinks.push({ to: "/admin", label: "Admin Panel" });
   } else if (isLoggedIn) {
-    navLinks.push({ to: "/dashboard", label: "Dashboard", icon: <User className="w-4 h-4" /> });
+    navLinks.push({ to: "/dashboard", label: "Dashboard" });
   }
 
   const isActiveLink = (path: string) =>
@@ -148,6 +148,115 @@ export default function Navigation() {
         )}
       </AnimatePresence>
 
+      {/* Mobile Menu Panel */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="fixed top-0 right-0 bottom-0 w-80 max-w-[85vw] bg-white shadow-2xl z-50 lg:hidden overflow-y-auto"
+          >
+            {/* Mobile Menu Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <Link to="/" className="flex items-center gap-3" onClick={() => setIsMobileMenuOpen(false)}>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg">
+                  <span className="text-white font-bold text-sm">BP</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-bold text-gray-900 leading-tight text-sm">Burgeonpath</span>
+                  <span className="font-bold text-gray-900 leading-tight text-sm">Tech</span>
+                </div>
+              </Link>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors duration-200"
+              >
+                <X className="w-5 h-5 text-gray-700" />
+              </motion.button>
+            </div>
+
+            {/* Mobile Menu Links */}
+            <div className="p-4 space-y-2">
+              {navLinks.map((link, index) => (
+                <motion.div
+                  key={link.to}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                >
+                  <Link
+                    to={link.to}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 ${isActiveLink(link.to)
+                        ? "text-purple-600 bg-purple-50"
+                        : "text-gray-700 hover:text-purple-600 hover:bg-gray-50"
+                      }`}
+                  >
+                    <span>{link.label}</span>
+                    {isActiveLink(link.to) && (
+                      <motion.div
+                        className="ml-auto w-2 h-2 rounded-full bg-purple-500"
+                        layoutId="mobileActiveIndicator"
+                      />
+                    )}
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Mobile Menu Footer - Auth Buttons */}
+            {!isLoggedIn && !isAdminLoggedIn && !isAuthPage && (
+              <div className="p-4 border-t border-gray-200 space-y-3 mt-auto">
+                <Link to="/login" onClick={() => setIsMobileMenuOpen(false)}>
+                  <button className="w-full px-4 py-2.5 rounded-lg font-medium text-gray-700 border border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                    Sign in
+                  </button>
+                </Link>
+                <Link to="/signup" onClick={() => setIsMobileMenuOpen(false)}>
+                  <button className="w-full px-4 py-2.5 rounded-lg font-medium text-white bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 transition-all duration-200 shadow-lg">
+                    Get Started
+                  </button>
+                </Link>
+              </div>
+            )}
+
+            {/* Mobile Menu Footer - Logged In User */}
+            {(isLoggedIn || isAdminLoggedIn) && (
+              <div className="p-4 border-t border-gray-200 space-y-3 mt-auto">
+                <div className="flex items-center gap-3 px-2 py-2">
+                  <div className="w-10 h-10 rounded-full overflow-hidden">
+                    <img
+                      src={userProfile || "/default-avatar.png"}
+                      alt="User Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">
+                      {isAdminLoggedIn ? admin?.name : user?.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {isAdminLoggedIn ? admin?.email : user?.email}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-all duration-200"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* User Dropdown Backdrop */}
       <AnimatePresence>
         {isUserDropdownOpen && (
@@ -165,11 +274,10 @@ export default function Navigation() {
         initial={{ y: -100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
             ? "bg-white/80 backdrop-blur-md border-b border-gray-200/50"
             : "bg-white/95 backdrop-blur-sm"
-        }`}
+          }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
@@ -200,13 +308,11 @@ export default function Navigation() {
                 >
                   <Link
                     to={link.to}
-                    className={`relative flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                      isActiveLink(link.to)
+                    className={`relative flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${isActiveLink(link.to)
                         ? "text-purple-600 bg-purple-50"
                         : "text-gray-600 hover:text-purple-600 hover:bg-gray-50"
-                    }`}
+                      }`}
                   >
-                    {link.icon}
                     {link.label}
                     {isActiveLink(link.to) && (
                       <motion.div
