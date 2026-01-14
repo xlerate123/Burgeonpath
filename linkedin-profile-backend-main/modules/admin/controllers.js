@@ -12,21 +12,21 @@ const generateReferralCode = async (collegeName) => {
   const prefix = collegeName.substring(0, 3).toUpperCase();
   let referralCode;
   let isUnique = false;
-  
+
   // Keep generating until we get a unique code
   while (!isUnique) {
     const randomStr = crypto.randomBytes(3).toString('hex').toUpperCase();
     referralCode = `${prefix}-${randomStr}`;
-    
+
     // Check if code already exists
     const existingCode = await db.collection('agents')
       .where('referralCode', '==', referralCode)
       .limit(1)
       .get();
-    
+
     isUnique = existingCode.empty;
   }
-  
+
   return referralCode;
 };
 
@@ -75,7 +75,7 @@ export const adminLogin = async (req, res) => {
 
     console.log('🔐 Verifying password with bcrypt...');
     const isPasswordValid = await bcrypt.compare(password, adminData.passwordHash);
-    
+
     console.log('Password verification result:', {
       providedPassword: password ? '***' : 'empty',
       isValid: isPasswordValid
@@ -100,11 +100,12 @@ export const adminLogin = async (req, res) => {
     await adminSessions.set(sessionToken, sessionData);
     console.log('✅ Session created:', sessionToken);
 
-    // Set session cookie
+    // Set session cookie - environment-aware for production cross-origin
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie("admin_session", sessionToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: isProduction,  // true in production (HTTPS), false in dev
+      sameSite: isProduction ? "none" : "lax",  // "none" for cross-origin (prod), "lax" for local dev
       maxAge: 60 * 60 * 24 * 5 * 1000, // 5 days
     });
 
@@ -126,9 +127,9 @@ export const adminLogin = async (req, res) => {
     });
   } catch (error) {
     console.error('Admin login error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Login failed' 
+      error: 'Login failed'
     });
   }
 };
@@ -240,9 +241,9 @@ export const updateAdminPassword = async (req, res) => {
     });
   } catch (error) {
     console.error('Update admin password error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Failed to update password' 
+      error: 'Failed to update password'
     });
   }
 };
@@ -286,9 +287,9 @@ export const resetAdminPassword = async (req, res) => {
     });
   } catch (error) {
     console.error('Reset admin password error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Failed to reset password' 
+      error: 'Failed to reset password'
     });
   }
 };
@@ -306,7 +307,7 @@ export const hashExistingPasswords = async (req, res) => {
 
     for (const doc of adminsSnapshot.docs) {
       const adminData = doc.data();
-      
+
       // Skip if already has password hash
       if (adminData.passwordHash) {
         console.log(`ℹ️  Admin ${adminData.email} already has password hash`);
@@ -341,9 +342,9 @@ export const hashExistingPasswords = async (req, res) => {
     });
   } catch (error) {
     console.error('Hash existing passwords error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Failed to hash existing passwords' 
+      error: 'Failed to hash existing passwords'
     });
   }
 };
@@ -351,22 +352,23 @@ export const hashExistingPasswords = async (req, res) => {
 // Keep all your existing functions below (they remain unchanged)
 export const adminLogout = (req, res) => {
   const sessionToken = req.cookies?.admin_session;
-  
+
   if (sessionToken) {
     adminSessions.delete(sessionToken);
     console.log('✅ Session deleted:', sessionToken, 'Remaining sessions:', adminSessions.size);
   }
-  
+
+  const isProduction = process.env.NODE_ENV === 'production';
   res.clearCookie("admin_session", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict"
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax"
   });
-  
+
   console.log('✅ Admin logout - session cleared');
-  return res.status(200).json({ 
+  return res.status(200).json({
     success: true,
-    message: "Admin logged out successfully" 
+    message: "Admin logged out successfully"
   });
 };
 
@@ -431,18 +433,18 @@ export const getDashboardStats = async (req, res) => {
 export const getUsers = async (req, res) => {
   try {
     const { search, background, blocked, subscribed, sort = 'name' } = req.query;
-    
+
     console.log('📊 Get users with filters:', { search, background, blocked, subscribed, sort });
 
     const snapshot = await db.collection('users').get();
     let users = [];
-    
+
     snapshot.forEach(doc => {
       const userData = doc.data();
       const fullName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
-      
-      users.push({ 
-        id: doc.id, 
+
+      users.push({
+        id: doc.id,
         name: fullName || userData.email,
         email: userData.email || '',
         firstName: userData.firstName || '',
@@ -472,17 +474,17 @@ export const getUsers = async (req, res) => {
         const userPhone = (user.phone || '');
         const userFirstName = (user.firstName || '').toLowerCase();
         const userLastName = (user.lastName || '').toLowerCase();
-        
-        return userName.includes(searchLower) || 
-               userEmail.includes(searchLower) || 
-               userPhone.includes(search) ||
-               userFirstName.includes(searchLower) ||
-               userLastName.includes(searchLower);
+
+        return userName.includes(searchLower) ||
+          userEmail.includes(searchLower) ||
+          userPhone.includes(search) ||
+          userFirstName.includes(searchLower) ||
+          userLastName.includes(searchLower);
       });
     }
 
     if (background && background !== 'all') {
-      users = users.filter(user => 
+      users = users.filter(user =>
         (user.background || '').toLowerCase() === background.toLowerCase()
       );
     }
@@ -526,13 +528,13 @@ export const getUsers = async (req, res) => {
 export const getUserDetail = async (req, res) => {
   try {
     const userDoc = await db.collection('users').doc(req.params.id).get();
-    
+
     if (!userDoc.exists) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     const userData = userDoc.data();
-    
+
     // ✅ Transform to include full name
     const fullName = `${userData.firstName || ''} ${userData.lastName || ''}`.trim();
     const transformedUser = {
@@ -574,15 +576,15 @@ export const getUserDetail = async (req, res) => {
 export const blockUser = async (req, res) => {
   try {
     const { isBlocked } = req.body;
-    
+
     await db.collection('users').doc(req.params.id).update({
       isBlocked: Boolean(isBlocked),
       updatedAt: new Date()
     });
 
-    res.json({ 
+    res.json({
       message: `User ${isBlocked ? 'blocked' : 'unblocked'} successfully`,
-      isBlocked 
+      isBlocked
     });
   } catch (error) {
     console.error('Block user error:', error);
@@ -594,13 +596,13 @@ export const blockUser = async (req, res) => {
 export const getAgents = async (req, res) => {
   try {
     const { search, sort = 'name' } = req.query;
-    
+
     const snapshot = await db.collection('agents').get();
     let agents = [];
-    
+
     snapshot.forEach(doc => {
       const agentData = doc.data();
-      agents.push({ 
+      agents.push({
         id: doc.id,
         name: agentData.name || 'Unknown Agent',
         email: agentData.email || '',
@@ -626,11 +628,11 @@ export const getAgents = async (req, res) => {
         const agentEmail = (agent.email || '').toLowerCase();
         const agentId = (agent.id || '').toLowerCase();
         const referralCode = (agent.referralCode || '').toLowerCase();
-        
-        return agentName.includes(searchLower) || 
-               agentEmail.includes(searchLower) || 
-               agentId.includes(searchLower) ||
-               referralCode.includes(searchLower);
+
+        return agentName.includes(searchLower) ||
+          agentEmail.includes(searchLower) ||
+          agentId.includes(searchLower) ||
+          referralCode.includes(searchLower);
       });
     }
 
@@ -652,7 +654,7 @@ export const getAgents = async (req, res) => {
 export const getAgentPerformance = async (req, res) => {
   try {
     const agentId = req.params.id;
-    
+
     console.log('📊 Getting performance for agent:', agentId);
 
     // 1. Get agent data
@@ -672,7 +674,7 @@ export const getAgentPerformance = async (req, res) => {
 
     const userIds = [];
     const users = [];
-    
+
     usersSnapshot.forEach(doc => {
       userIds.push(doc.id);
       const userData = doc.data();
@@ -691,11 +693,11 @@ export const getAgentPerformance = async (req, res) => {
     // 3. Get profile data for these users (optional - for additional info)
     const profiles = [];
     if (userIds.length > 0) {
-      const profilePromises = userIds.map(userId => 
+      const profilePromises = userIds.map(userId =>
         db.collection('profiles').doc(userId).get()
       );
       const profileDocs = await Promise.all(profilePromises);
-      
+
       profileDocs.forEach((profileDoc, index) => {
         if (profileDoc.exists) {
           profiles.push({
@@ -734,9 +736,9 @@ export const getAgentPerformance = async (req, res) => {
     });
 
     res.json({
-      agent: { 
-        id: agentDoc.id, 
-        ...agentData 
+      agent: {
+        id: agentDoc.id,
+        ...agentData
       },
       performance: {
         totalRevenue,
@@ -756,9 +758,9 @@ export const getAgentPerformance = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Get agent performance error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch agent performance',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -771,21 +773,21 @@ export const getAgentPerformance = async (req, res) => {
 export const createAgent = async (req, res) => {
   try {
     const { name, email, altEmail, phone, authorityName, commissionRate, emailDomain } = req.body;
-    
+
     console.log('📝 Creating agent with data:', { name, email, emailDomain });
 
     // Validate required fields
     if (!name || !email || !emailDomain) {
-      return res.status(400).json({ 
-        error: 'Name, email, and email domain are required' 
+      return res.status(400).json({
+        error: 'Name, email, and email domain are required'
       });
     }
 
     // Validate email domain format
     const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z]{2,}$/;
     if (!domainRegex.test(emailDomain)) {
-      return res.status(400).json({ 
-        error: 'Invalid email domain format. Example: college.edu' 
+      return res.status(400).json({
+        error: 'Invalid email domain format. Example: college.edu'
       });
     }
 
@@ -806,8 +808,8 @@ export const createAgent = async (req, res) => {
       .get();
 
     if (!existingDomain.empty) {
-      return res.status(400).json({ 
-        error: 'This email domain is already registered to another agent' 
+      return res.status(400).json({
+        error: 'This email domain is already registered to another agent'
       });
     }
 
@@ -832,17 +834,17 @@ export const createAgent = async (req, res) => {
     };
 
     const agentRef = await db.collection('agents').add(agentData);
-    
+
     console.log('✅ Agent created successfully with ID:', agentRef.id);
 
     // ✅ TODO: Send email to agent with referral code
     // You can implement email sending here using nodemailer or similar
-    
+
     res.status(201).json({
       success: true,
       message: 'Agent created successfully',
-      agent: { 
-        id: agentRef.id, 
+      agent: {
+        id: agentRef.id,
         ...agentData,
         // Return referral code for admin to share
         referralCodeInfo: {
@@ -854,9 +856,9 @@ export const createAgent = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Create agent error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to create agent',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -867,17 +869,17 @@ export const getRevenueAnalytics = async (req, res) => {
   try {
     const agentsSnapshot = await db.collection('agents').get();
     const agents = [];
-    
+
     for (const doc of agentsSnapshot.docs) {
       const agentData = doc.data();
-      
+
       // Calculate performance for each agent
       const usersSnapshot = await db.collection('users')
         .where('agentId', '==', doc.id)
         .get();
 
       const userIds = usersSnapshot.docs.map(userDoc => userDoc.id);
-      
+
       let agentRevenue = 0;
       if (userIds.length > 0) {
         const subscriptionsSnapshot = await db.collection('subscriptions')
@@ -917,18 +919,18 @@ export const validateReferralCode = async (req, res) => {
     console.log('🔍 Validating referral code:', { referralCode, email });
 
     if (!referralCode || !email) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: 'Referral code and email are required' 
+        error: 'Referral code and email are required'
       });
     }
 
     // Extract domain from student email
     const studentDomain = extractDomain(email);
     if (!studentDomain) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: 'Invalid email format' 
+        error: 'Invalid email format'
       });
     }
 
@@ -943,9 +945,9 @@ export const validateReferralCode = async (req, res) => {
 
     if (agentQuery.empty) {
       console.log('❌ Invalid or inactive referral code');
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        error: 'Invalid or inactive referral code' 
+        error: 'Invalid or inactive referral code'
       });
     }
 
@@ -960,8 +962,8 @@ export const validateReferralCode = async (req, res) => {
         expected: agentData.emailDomain,
         received: studentDomain
       });
-      
-      return res.status(403).json({ 
+
+      return res.status(403).json({
         success: false,
         error: `Email domain does not match. Please use an email from ${agentData.emailDomain}`,
         expectedDomain: agentData.emailDomain,
@@ -985,10 +987,10 @@ export const validateReferralCode = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Validate referral code error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       error: 'Failed to validate referral code',
-      details: error.message 
+      details: error.message
     });
   }
 };
@@ -1056,7 +1058,7 @@ export const toggleReferralCodeStatus = async (req, res) => {
 export const getSubscribedUsers = async (req, res) => {
   try {
     const { search, sort = 'name' } = req.query;
-    
+
     // Get all subscriptions with user data
     const subscriptionsSnapshot = await db.collection('subscriptions').get();
     const subscribedUsers = [];
@@ -1064,7 +1066,7 @@ export const getSubscribedUsers = async (req, res) => {
     for (const subDoc of subscriptionsSnapshot.docs) {
       const sub = subDoc.data();
       const userDoc = await db.collection('users').doc(sub.userId).get();
-      
+
       if (userDoc.exists) {
         subscribedUsers.push({
           subscription: { id: subDoc.id, ...sub },
@@ -1077,7 +1079,7 @@ export const getSubscribedUsers = async (req, res) => {
     let filteredUsers = subscribedUsers;
     if (search) {
       const searchLower = search.toLowerCase();
-      filteredUsers = subscribedUsers.filter(item => 
+      filteredUsers = subscribedUsers.filter(item =>
         item.user.name.toLowerCase().includes(searchLower) ||
         item.user.email.toLowerCase().includes(searchLower)
       );
@@ -1102,7 +1104,7 @@ export const getCoupons = async (req, res) => {
   try {
     const snapshot = await db.collection('coupons').get();
     const coupons = [];
-    
+
     snapshot.forEach(doc => {
       coupons.push({ id: doc.id, ...doc.data() });
     });
@@ -1118,7 +1120,7 @@ export const getCoupons = async (req, res) => {
 export const createCoupon = async (req, res) => {
   try {
     const { code, discount, maxUses, description } = req.body;
-    
+
     const couponData = {
       code,
       discount: Number(discount),
@@ -1130,7 +1132,7 @@ export const createCoupon = async (req, res) => {
     };
 
     const couponRef = await db.collection('coupons').add(couponData);
-    
+
     res.status(201).json({
       message: 'Coupon created successfully',
       coupon: { id: couponRef.id, ...couponData }
@@ -1146,11 +1148,11 @@ export const getCertifications = async (req, res) => {
   try {
     const snapshot = await db.collection('certifications').get();
     const certifications = [];
-    
+
     for (const doc of snapshot.docs) {
       const cert = doc.data();
       const userDoc = await db.collection('users').doc(cert.userId).get();
-      
+
       if (userDoc.exists) {
         certifications.push({
           id: doc.id,
@@ -1171,7 +1173,7 @@ export const getCertifications = async (req, res) => {
 export const reviewCertification = async (req, res) => {
   try {
     const { status, notes } = req.body;
-    
+
     if (!['approved', 'rejected'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
@@ -1183,9 +1185,9 @@ export const reviewCertification = async (req, res) => {
       notes: notes || ''
     });
 
-    res.json({ 
+    res.json({
       message: `Certification ${status} successfully`,
-      status 
+      status
     });
   } catch (error) {
     console.error('Review certification error:', error);
