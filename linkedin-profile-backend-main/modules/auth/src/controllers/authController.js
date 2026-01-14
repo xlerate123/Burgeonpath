@@ -4,10 +4,10 @@ import { admin } from "../config/firebase.js";
 // 🔹 Unified user creation handler
 const createOrUpdateUser = async (userData, authMethod) => {
   const { uid, email, name, phone, background, level, quizScore, agentId, googleId } = userData;
-  
+
   // Check if user exists
   let user = await getUser(uid);
-  
+
   if (!user) {
     // Create new user with unified schema
     user = await createUser(uid, {
@@ -25,10 +25,10 @@ const createOrUpdateUser = async (userData, authMethod) => {
       createdAt: new Date(),
       updatedAt: new Date()
     });
-    
+
     return { user, isNewUser: true };
   }
-  
+
   // Update existing user if needed
   if (authMethod === 'google' && !user.googleId) {
     await updateUserProfile(uid, {
@@ -37,7 +37,7 @@ const createOrUpdateUser = async (userData, authMethod) => {
       updatedAt: new Date()
     });
   }
-  
+
   return { user, isNewUser: false };
 };
 
@@ -67,15 +67,15 @@ export const registerWithEmail = async (req, res) => {
     // 3. Generate custom token for session
     const customToken = await admin.auth().createCustomToken(userRecord.uid);
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       message: "User registered successfully",
       user,
-      customToken 
+      customToken
     });
   } catch (error) {
     console.error("Email registration error:", error);
-    
+
     // Clean up Firebase user if Firestore creation fails
     if (error.uid) {
       try {
@@ -84,10 +84,10 @@ export const registerWithEmail = async (req, res) => {
         console.error("Error cleaning up Firebase user:", deleteError);
       }
     }
-    
-    res.status(400).json({ 
-      success: false, 
-      message: error.message 
+
+    res.status(400).json({
+      success: false,
+      message: error.message
     });
   }
 };
@@ -96,7 +96,7 @@ export const registerWithEmail = async (req, res) => {
 export const handleGoogleAuth = async (req, res) => {
   try {
     const { idToken } = req.body;
-    
+
     // Verify Google ID token
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const { uid, email, name, picture } = decodedToken;
@@ -118,17 +118,17 @@ export const handleGoogleAuth = async (req, res) => {
     // Generate custom token for session
     const customToken = await admin.auth().createCustomToken(uid);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       user,
       isNewUser,
-      customToken 
+      customToken
     });
   } catch (error) {
     console.error("Google auth error:", error);
-    res.status(400).json({ 
-      success: false, 
-      message: error.message 
+    res.status(400).json({
+      success: false,
+      message: error.message
     });
   }
 };
@@ -139,9 +139,9 @@ export const completeUserProfile = async (req, res) => {
     const { uid, phone, background } = req.body;
 
     if (!uid) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "User ID is required" 
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required"
       });
     }
 
@@ -151,16 +151,16 @@ export const completeUserProfile = async (req, res) => {
       updatedAt: new Date()
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: "Profile completed successfully",
-      user: updatedUser 
+      user: updatedUser
     });
   } catch (error) {
     console.error("Profile completion error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message 
+    res.status(500).json({
+      success: false,
+      message: error.message
     });
   }
 };
@@ -199,14 +199,14 @@ export const createUserByAdmin = async (req, res) => {
 
     // TODO: Send setup email to user with temporary password
 
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       message: "User created successfully",
-      user 
+      user
     });
   } catch (error) {
     console.error("Admin user creation error:", error);
-    
+
     // Clean up on failure
     if (error.uid) {
       try {
@@ -215,10 +215,10 @@ export const createUserByAdmin = async (req, res) => {
         console.error("Error cleaning up Firebase user:", deleteError);
       }
     }
-    
-    res.status(400).json({ 
-      success: false, 
-      message: error.message 
+
+    res.status(400).json({
+      success: false,
+      message: error.message
     });
   }
 };
@@ -232,10 +232,13 @@ export const sessionLogin = async (req, res) => {
     const expiresIn = 60 * 60 * 24 * 5 * 1000; // 5 days
     const sessionCookie = await admin.auth().createSessionCookie(idToken, { expiresIn });
 
+    // Environment-aware cookie configuration
+    const isProduction = process.env.NODE_ENV === 'production';
+
     res.cookie("session", sessionCookie, {
       httpOnly: true,
-      secure: true,           // always true — both Vercel & Render are HTTPS
-      sameSite: "none",       // required for cross-origin cookies
+      secure: isProduction,           // true in production (HTTPS), false in dev (HTTP)
+      sameSite: isProduction ? "none" : "lax", // "none" for cross-origin (prod), "lax" for local dev
       maxAge: expiresIn,
     });
 
